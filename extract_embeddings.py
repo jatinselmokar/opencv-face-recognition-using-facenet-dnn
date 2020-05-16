@@ -106,6 +106,7 @@ for (i, imagePath) in enumerate(imagePaths):
 # dump the facial embeddings + names to disk
 print("[INFO] serializing {} encodings...".format(total))
 data = {"embeddings": knownEmbeddings, "names": knownNames}
+print(type(data))
 f = open(out_embeddings, "wb")
 f.write(pickle.dumps(data))
 f.close()

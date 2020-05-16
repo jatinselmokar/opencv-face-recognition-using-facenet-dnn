@@ -14,15 +14,35 @@ import pickle
 import time
 import cv2
 import os
+import numpy as np
+
+def who_is_it(vector,database_encode):
+	encoding = vector
+	min_dist = 100
+
+	for i in range(len(database["embeddings"])):
+		db_enc = database["embeddings"][i]
+		name = database["names"][i]
+		dist = np.linalg.norm(encoding - db_enc)
+
+		if dist < min_dist:
+			min_dist = dist
+			identity = name
+	if not min_dist < 0.55:
+		identity = "Not in database"
+	print(min_dist)
+	return min_dist, identity
 
 #File paths
 filedir = os.path.dirname(os.path.realpath(__file__))
 detector_path = os.path.join(filedir, "face_detection_model")
-embedding_model = embedding_model_path = os.path.join(filedir, "openface_nn4.small2.v1.t7")
+embedding_model_path = os.path.join(filedir, "openface_nn4.small2.v1.t7")
 model = os.path.join(filedir, "output", "model.pickle")
 label_encoder =os.path.join(filedir, "output", "label_encoder.pickle")
-confidence_limit = 0.99
+model = os.path.join(filedir, "output", "embeddings.pickle")
+confidence_limit = 0.80
 
+database = pickle.loads(open(model, "rb").read())
 
 # load our serialized face detector from disk
 print("[INFO] loading face detector...")
@@ -40,7 +60,7 @@ le = pickle.loads(open(label_encoder, "rb").read())
 
 # initialize the video stream, then allow the camera sensor to warm up
 print("[INFO] starting video stream...")
-vs = VideoStream(src=0).start()
+capture = cv2.VideoCapture(0,cv2.CAP_DSHOW)
 time.sleep(2.0)
 
 # start the FPS throughput estimator
@@ -49,7 +69,7 @@ fps = FPS().start()
 # loop over frames from the video file stream
 while True:
 	# grab the frame from the threaded video stream
-	frame = vs.read()
+	_,frame = capture.read()
 
 	# resize the frame to have a width of 600 pixels (while
 	# maintaining the aspect ratio), and then grab the image
@@ -96,15 +116,16 @@ while True:
 			embedder.setInput(faceBlob)
 			vec = embedder.forward()
 
+			similarity, name = who_is_it(vec, database)
 			# perform classification to recognize the face
-			preds = recognizer.predict_proba(vec)[0]
-			j = np.argmax(preds)
-			proba = preds[j]
-			name = le.classes_[j]
+			# preds = recognizer.predict_proba(vec)[0]
+			# j = np.argmax(preds)
+			# proba = preds[j]
+			# name = le.classes_[j]
 
 			# draw the bounding box of the face along with the
 			# associated probability
-			text = "{}: {:.2f}%".format(name, proba * 100)
+			text = "{}: {:.2f}".format(name, similarity)
 			y = startY - 10 if startY - 10 > 10 else startY + 10
 			cv2.rectangle(frame, (startX, startY), (endX, endY),
 				(0, 0, 255), 2)
@@ -128,5 +149,5 @@ print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
 print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
 # do a bit of cleanup
+capture.release()
 cv2.destroyAllWindows()
-vs.stop()
